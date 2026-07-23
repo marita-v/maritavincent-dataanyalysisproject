@@ -1,3 +1,4 @@
+# Fixes location typos. Removes incorrect or irrelevant entries.
 clean_location <- function(location_vec) {
   stopifnot(is.character(location_vec))
 
@@ -9,7 +10,8 @@ clean_location <- function(location_vec) {
   location_vec
 }
 
-
+# Makes all salaries yearly.
+# 40 hrs/week, 2080 hrs/year, 52 weeks/year.
 annualize_salary <- function(salary, salary_type) {
   stopifnot(length(salary) == length(salary_type))
 
@@ -21,7 +23,7 @@ annualize_salary <- function(salary, salary_type) {
   annual_salary
 }
 
-
+# Loads and cleans the data. Keeps only main 4 locations.
 load_clean_salary_data <- function(path, min_location_n = 10) {
   if (!file.exists(path)) {
     stop("File not found: ", path)
@@ -32,10 +34,11 @@ load_clean_salary_data <- function(path, min_location_n = 10) {
   raw$location <- clean_location(raw$location)
   raw$annual_salary <- annualize_salary(raw$current_salary, raw$salary_type)
 
-
+  # count rows per location
   location_counts <- table(raw$location)
   valid_locations <- names(location_counts[location_counts >= min_location_n])
 
+  # keep appropriate rows only
   keep <- raw$location %in% valid_locations &
     !is.na(raw$annual_salary) &
     raw$annual_salary > 1000
