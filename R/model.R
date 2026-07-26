@@ -3,9 +3,10 @@
 library(ggplot2)
 
 # Fits a model predicting log(annual_salary) from location.
-# Use log(salary) because raw salary is skewed, and log makes it more normal/symmetric.
+# Use log(salary) because raw salary is skewed.
 
 fit_salary_model <- function(data) {
+  data$location <- relevel(data$location, ref = "Irvine")
   lm(log_annual_salary ~ location, data = data)
 }
 
