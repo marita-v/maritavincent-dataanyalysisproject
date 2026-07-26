@@ -1,0 +1,132 @@
+---
+title: "Is There a Difference in Average Salary Across Blizzard's Office Locations?"
+author: "Marita Vincent"
+date: "2026-07-28"
+format:
+  html:
+    toc: true
+    toc-location: left
+    toc-depth: 2
+    embed-resources: true
+pagetitle: "Data Analysis Project - Marita Vincent - {{< meta title >}}"
+page-layout: full
+editor: visual
+error: true
+execute:
+  echo: false
+  warning: false
+  message: false
+---
+
+```{r}
+#| label: setup
+source("cleandata.R")
+source("model.R")
+source("map.R")
+
+salary_data <- load_clean_salary_data("blizzard_salary.csv")
+salary_model <- fit_salary_model(salary_data)
+```
+
+## Introduction
+
+The dataset I used is employee surveys of Blizzard Entertainment salaries, which circulated in the company around 2020 amid discourse of pay disparities at the company (Bloomberg, 2020). The raw survey contains `r nrow(salary_data)` usable and cleaned responses including current job title, salary, salary frequency, most recent performance rating, and office location.
+
+### Code book
+
+| Variable | Type | Description |
+|------------------------|------------------------|------------------------|
+| `current_salary` | numeric | Self-reported current salary, in the units given by `salary_type` |
+| `salary_type` | factor | Frequency of the reported salary: year, hour, or week |
+| `location` | factor | Office location; cleaned and restricted to Irvine, Austin, Cork, and Versailles |
+| `annual_salary` (derived) | numeric | `current_salary` standardized to an annual USD basis (see Methods) |
+| `log_annual_salary` (derived) | numeric | Natural log of `annual_salary`, used as the model outcome |
+
+**Variables Not Used:** `current_title`, `percent_incr`, `performance_rating`, `other_info`, `status`, and `timestamp` are not used in this analysis, since our question concerns location and salary specifically. `other_info` is additionally also not used, as many responses left is empty and also did not concern the topic at hand.
+
+**Observations omitted:** While cleaning the data, locations with fewer than 10 valid responses (For example some other locations included: New York, The Hague, Work From Home - Virginia, etc.) were dropped. Using a sample sizes that small would have hindered the data more than it would have helped it. One response with a reported annual salary of \$1 was also dropped, since that would have skewed the data, and also did not seem like a valid response, rather a mistype.
+
+### Research Question
+
+Blizzard's 2020 pay transparency survey was orginally sent out because employees suspected large, and potentially unjustified pay disparities within the company. Office location is a prime reason of such disparities because different offices vary in their functionality (e.g., corporate headquarters vs. quality assurance or localization support), and cost of living varies substantially across Irvine (California), Austin (Texas), Cork (Ireland), and Versailles (France).
+
+**Research question:** Is there a difference in average annual salary
+across Blizzard's office locations?
+
+**Hypotheses:**
+
+- $H_0$: Average annual salary is the same across all four locations.
+- $H_1$: Average annual salary differs by location, with Irvine location being higher than the other three offices, because that is where the headquarters are located.
+
+## Methods
+
+I used a one-way ANOVA (fit as a linear regression) to compare average annual salary across the four locations, with Irvine set as the reference group for comparison. Salaries reported hourly or weekly were converted to a yearly amount first, assuming a 40-hour work week. I used the log of salary instead of raw salary because raw salary is right-skewed, and the
+log version is more symmetric, which better fits the assumptions of the model.
+
+**Equation used:** log(annual_salary) = b0 + b1(Austin) + b2(Cork) + b3(Versailles) + error
+
+- **b0** = the average log salary for Irvine employees
+
+- **b1, b2, b3** = how much higher or lower the average log salary is at Austin, Cork, or Versailles, compared to Irvine
+
+Because `current_salary` was reported by various people in various styles, I first standardized all salaries to be annual, assuming a 40-hour work week (2,080 hours/year) for hourly employees and 52 paid weeks/year for the one repsonse that responded as weekly pay.
+
+**Model assumptions:** Raw annual salary is right-skewed (skewness = 0.66); the log transform improves symmetry (skewness = -0.07) and better satisfies these assumptions.
+
+I used the `lm()` function to fit the model, `summary()` to extract coefficient estimates, standard errors, and p-values, and `ggplot2` for visualization.
+
+```{r}
+#| label: fig-summary
+plot_salary_by_location(salary_data)
+```
+
+## Results
+
+```{r}
+#| label: tbl-model
+summary(salary_model)
+```
+
+```{r}
+#| label: fig-diagnostics-resid
+plot_residuals_vs_fitted(salary_model)
+```
+
+```{r}
+#| label: fig-diagnostics-qq
+plot_qq(salary_model)
+```
+
+The regression results show a statistically significant difference in average annual salary across office locations (F(3, 390) = 56.29, p \< 2.2e-16), with location explaining about 30% of the variance in log annual salary (R² = 0.302).
+
+Using Irvine as the reference group, salaries at every other office were
+significantly lower:
+
+- \*\*Austin:\*\* salaries were about 44% lower than Irvine on average (coefficient = -0.583, p \< 0.001)
+- \*\*Cork:\*\* salaries were about 55% lower than Irvine on average (coefficient = -0.795, p \< 0.001)
+- \*\*Versailles:\*\* salaries were about 45% lower than Irvine on average (coefficient = -0.592, p \< 0.001)
+
+Since currency vary in each location, using the United States Dollar scale, this corresponds to an estimated average annual salary of about \$88,300 at Irvine, versus roughly \$49,300 at Austin, \$39,900 at Cork, and \$48,900 at Versailles.
+
+The diagnostic plots show some deviation from ideal model assumptions. The residuals vs. fitted plot shows wider spread in residuals at Irvine than at the other locations, suggesting unequal variance across groups. The Q-Q plot follows the diagonal reasonably well through the middle of the distribution but curves away at both ends, showing that the residuals have somewhat heavier tails than a normal distribution would predict. These are moderate observations, but this means that mean p-values and confidence intervals should be interpreted with some reverence of this.
+
+## Discussion
+
+This analysis found a clear, statistically significant difference in average annual salary across Blizzard's four surveyed office locations, with Irvine employees earning substantially more on average than employees at Austin, Cork, or Versailles. This supports the alternative hypothesis: average salary is not the same across locations.
+
+However, this finding is not necessarily evidence that location itself causes higher pay. Irvine is Blizzard's global headquarters and likely hosts a different job roles and seniority levels (as well as levels of experience) compared to Austin, Cork, and Versailles, which may have more specialized support functions like quality assurance or teams that are responsible for only certain projects. Since job title was excluded from this analysis, the model cannot separate the effect of location itself from the effect of what kinds of jobs are performed at each location.
+
+If I were to redo this analysis, I would include job title or seniority as an additional covariate, which would help clarify whether these are genuine location-based pay differences or simply a reflection of what roles happen to be based in each office.
+
+Another important note, is that some of these employee reported salary data, might be from disgruntled employees, since the original reason the survey was distributed was because of suspicion of pay disparity. Those who may be making a higher salary, or who felt as if their pay was justified might have had less incentive in filling out this survey. This does not change the results, but can be a factor when trying to understand the data.
+
+## Appendix
+
+```{r}
+#| label: fig-map
+#| fig-cap: "Mean annualized salary by office location. Point color indicates mean salary (warmer = higher); point size indicates sample size."
+plot_salary_map(salary_data)
+```
+
+Figure 4 visualizes these differences geographically. Irvine (the largest point, reflecting its larger sample size) stands out with a noticeably higher mean annual salary than the other three offices, which cluster much closer together despite being on different continents. This
+reinforces the pattern from the regression results: the gap in pay is specifically between Irvine and everywhere else, rather than a gradual difference across all four locations. It is also important to note that the larger sample size at Irvine, could have potentially added to better results, as more data points, usually give better estimates in averages.
